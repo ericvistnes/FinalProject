@@ -15,11 +15,12 @@ class SVDPredictor:
     error_table = pd.DataFrame(columns = ["Model", "Train_RMSE", "Test_RMSE"])
     
     #Class takes in final.csv as a whole as a DataFrame
-    def __init__(self, data):
+    def __init__(self, data, titles):
         self.movie = data
-        self.createAlgorithmFromData()
+        self.titles = titles
+        self._createAlgorithmFromData()
         
-    def createAlgorithmFromData(self):
+    def _createAlgorithmFromData(self):
         #check if algo and trainset/train_data files are already created
         file = pathlib.Path('svd.pickle')
         if not file.exists():
@@ -27,6 +28,24 @@ class SVDPredictor:
             self._splitMovie()
             self._createTrainSet()
         self._run_surprise()
+        
+    def recommendFor(self, customerID, count):
+        preds = []
+        ids = []
+        for mov in self.movie.MovieID.unique().tolist():
+            preds.append(self.predict(customerID, mov).est)
+            ids.append(mov)
+            
+        movieAndRating = {}
+        copyPreds = preds[:]
+        for i in range(count):
+            index = copyPreds.index(max(copyPreds))
+            maxPred = max(copyPreds)
+            mov = ids[index]
+            title = movie_title.iloc[mov-1:mov]['title'][mov-1]
+            movieAndRating[title] = maxPred
+            copyPreds.pop(index)
+        return movieAndRating
         
     def predict(self, userID, movieID):
         #use algo to predict rating. Return predicted rating
@@ -59,11 +78,6 @@ class SVDPredictor:
                 self.algo = pickle.load(f)
         else:
             self.algo = SVD(n_factors = 5, biased=True, verbose=True)
-            self.algo.fit(self.trainset)
+            self.algo = self.algo.fit(self.trainset)
             with open('svd.pickle', 'wb') as f:
                 pickle.dump(self.algo, f)
-
-    def _make_table(model_name, rmse_train, rmse_test):
-        global error_table
-        error_table = error_table.append(pd.DataFrame([[model_name, rmse_train, rmse_test]], columns = ["Model", "Train_RMSE", "Test_RMSE"]))
-        error_table.reset_index(drop = True, inplace = True)
